@@ -24,16 +24,7 @@ services:
       - codewithtin
     volumes:
       - controller_data_1:/var/lib/kafka/data
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    restart: unless-stopped
-
+    
   kafka-controller-2:
     image: apache/kafka:3.8.1
     container_name: kafka-controller-2
@@ -50,16 +41,7 @@ services:
       - codewithtin
     volumes:
       - controller_data_2:/var/lib/kafka/data
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    restart: unless-stopped
-      
+    
   kafka-controller-3:
     image: apache/kafka:3.8.1
     container_name: kafka-controller-3
@@ -76,16 +58,6 @@ services:
       - codewithtin
     volumes:
       - controller_data_3:/var/lib/kafka/data
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 512M
-        reservations:
-          cpus: '0.25'
-          memory: 256M
-    restart: unless-stopped
-
 
   kafka-broker-1:
     image: apache/kafka:3.8.1
