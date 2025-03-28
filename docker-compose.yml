@@ -91,12 +91,12 @@ services:
     image: apache/kafka:3.8.1
     container_name: kafka-broker-1
     ports:
-      - 29092:19092
+      - '29092:19092'
     environment:
       KAFKA_NODE_ID: 4
       KAFKA_PROCESS_ROLES: broker
-      KAFKA_LISTENERS: PLAINTEXT://:19092, PLAINTEXT_HOST://:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-1:19092, PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENERS: 'PLAINTEXT://:19092,PLAINTEXT_HOST://:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka-broker-1:19092,PLAINTEXT_HOST://localhost:29092'
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
@@ -115,12 +115,12 @@ services:
     image: apache/kafka:3.8.1
     container_name: kafka-broker-2
     ports:
-      - 39092:19092
+      - '39092:19092'
     environment:
       KAFKA_NODE_ID: 5
       KAFKA_PROCESS_ROLES: broker
-      KAFKA_LISTENERS: PLAINTEXT://:19092, PLAINTEXT_HOST://:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-2:19092, PLAINTEXT_HOST://localhost:39092
+      KAFKA_LISTENERS: 'PLAINTEXT://:19092,PLAINTEXT_HOST://:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka-broker-2:19092,PLAINTEXT_HOST://localhost:39092'
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
@@ -139,12 +139,12 @@ services:
     image: apache/kafka:3.8.1
     container_name: kafka-broker-3
     ports:
-      - 49092:19092
+      - '49092:19092'
     environment:
       KAFKA_NODE_ID: 6
       KAFKA_PROCESS_ROLES: broker
-      KAFKA_LISTENERS: PLAINTEXT://:19092, PLAINTEXT_HOST://:9092
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-broker-3:19092, PLAINTEXT_HOST://localhost:49092
+      KAFKA_LISTENERS: 'PLAINTEXT://:19092,PLAINTEXT_HOST://:9092'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka-broker-3:19092,PLAINTEXT_HOST://localhost:49092'
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
@@ -189,18 +189,15 @@ services:
       CONFIG_FILEPATH: /tmp/config.yml
       CONSOLE_CONFIG_FILE: >
         kafka:
-          brokers:
-            - kafka-broker-1:19092
-            - kafka-broker-2:19092
-            - kafka-broker-3:19092
+          brokers: ["kafka-broker-1:19092","kafka-broker-2:19092","kafka-broker-3:19092"]
           schemaRegistry: 
-            url: http://schema-registry:18081
+            urls: ["http://schema-registry:18081"]
             enabled: true
         
         redpanda:
           adminApi:
             enabled: false
-            urls: http://kafka_broker:9644
+            urls: ["http://kafka_broker:9644"]
 
         connect:
           enabled: false
@@ -214,10 +211,10 @@ services:
     <<: *spark-common
     command: bin/spark-class org.apache.spark.deploy.master.Master
     ports:
-      - 9190:8080
-      - 7077:7077
-      - 4040:4040
-      - 8081:8081
+      - "9190:8080"
+      - "7077:7077"
+      - "4040:4040"
+      - "8081:8081"
 
   spark-worker: &spark-worker-image
     <<: *spark-common
@@ -246,3 +243,4 @@ volumes:
 
 networks:
   codewithtin:
+    driver: bridge
