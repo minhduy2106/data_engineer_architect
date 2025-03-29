@@ -6,8 +6,7 @@ from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 import logging
 
-KAFKA_BROKER = "localhost:29092,localhost:39092,localhost:49092"
-# KAFKA_BROKER = "192.168.1.37:19092,192.168.1.37:19092,192.168.1.37:19092"
+KAFKA_BROKER = "192.168.1.150:29092,192.168.1.150:39092,192.168.1.150:49092"
 NUM_PARTITIONS = 3
 REPLICATION_FACTOR = 1
 TOPIC_NAME = "financial_transactions"
