@@ -63,7 +63,7 @@ services:
     image: apache/kafka:3.8.1
     container_name: kafka-broker-1
     ports:
-      - '29092:19092'
+      - '29092:9092'
     environment:
       KAFKA_NODE_ID: 4
       KAFKA_PROCESS_ROLES: broker
@@ -87,7 +87,7 @@ services:
     image: apache/kafka:3.8.1
     container_name: kafka-broker-2
     ports:
-      - '39092:19092'
+      - '39092:9092'
     environment:
       KAFKA_NODE_ID: 5
       KAFKA_PROCESS_ROLES: broker
@@ -111,7 +111,7 @@ services:
     image: apache/kafka:3.8.1
     container_name: kafka-broker-3
     ports:
-      - '49092:19092'
+      - '49092:9092'
     environment:
       KAFKA_NODE_ID: 6
       KAFKA_PROCESS_ROLES: broker
