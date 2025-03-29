@@ -1,4 +1,5 @@
 import json
+import threading
 import uuid
 import random
 import time
@@ -49,7 +50,7 @@ def delivery_report(err, mess):
     else:
         print(f"Delivery report success: {mess.key()}")
 
-if __name__ == "__main__":
+def producer_transaction(thread_id):
     while True:
         transaction = generate_transaction()
         try:
@@ -59,10 +60,29 @@ if __name__ == "__main__":
                 value=json.dumps(transaction).encode("utf-8"),
                 on_delivery=delivery_report
             )
-            print(f"Sent transaction: {transaction['transaction_id']}")
+            print(f"Thread {thread_id} - Produced transaction: {transaction}")
             producer.flush()
         except Exception as e:
             print(f"Error: {e}")
+
+
+def producer_data_in_parallel(num_thread):
+    threads = []
+    try:
+        for i in range(num_thread):
+            thread = threading.Thread(target=producer_transaction, args=(i,))
+            thread.daemon = True
+            thread.start()
+            threads.append(thread)
+
+        for thread in threads:
+            thread.join()
+    except Exception as e:
+        print(f"Error: {e}")
+
+
+if __name__ == "__main__":
+    producer_data_in_parallel(5)
 
 
 
