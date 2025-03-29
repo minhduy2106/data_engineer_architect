@@ -1,8 +1,13 @@
+import json
+import uuid
+import random
+import time
 from confluent_kafka import Producer
 from confluent_kafka.admin import AdminClient, NewTopic
 import logging
 
 KAFKA_BROKER = "localhost:29092,localhost:39092,localhost:49092"
+# KAFKA_BROKER = "192.168.1.37:19092,192.168.1.37:19092,192.168.1.37:19092"
 NUM_PARTITIONS = 3
 REPLICATION_FACTOR = 1
 TOPIC_NAME = "financial_transactions"
@@ -13,31 +18,53 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+producer_conf = {
+    "bootstrap.servers": KAFKA_BROKER,
+    "queue.buffering.max.messages": 10000,
+    "queue.buffering.max.kbytes": 512000,
+    "batch.num.messages": 10000,
+    "linger.ms": 10,
+    "acks": 1,
+    "compression.type": "snappy"
+}
 
-def create_topic(topic_name):
-    admin_client = AdminClient({"bootstrap.servers": KAFKA_BROKER})
+producer = Producer(**producer_conf)
 
-    try:
-        metadata = admin_client.list_topics(timeout=5)
-        if topic_name not in metadata.topics:
-            new_topic = NewTopic(
-                topic=topic_name, 
-                num_partitions=NUM_PARTITIONS, 
-                replication_factor=REPLICATION_FACTOR
-                )
-            fs = admin_client.create_topics([new_topic])
-            for topic, f in fs.items():
-                try:
-                    f.result()
-                    logger.info(f"Topic {topic} created successfully.")
-                except Exception as e:
-                    logger.error(f"Error creating topic {topic}: {e}")
-        else:
-            logger.info(f"Topic {topic_name} already exists.")
-    except Exception as e:
-        logger.error(f"Error creating topic {topic_name}: {e}")
+def generate_transaction():
+    return dict(
+        transaction_id=str(uuid.uuid4()),
+        user_id=f"user_{random.randint(1, 100)}",
+        amount=round(random.uniform(50000, 150000), 2),
+        transaction_time=int(time.time()),
+        merchant_id=random.choice(["merchant_1", "merchant_2","merchant_3"]),
+        transaction_type=random.choice(["purchase","refund"]),
+        location=f'location_{random.randint(1, 50)}',
+        payment_method=random.choice(["credit_card","paypal","bank_transfer"]),
+        is_international=random.choice([True, False]),
+        currency=random.choice(['USD','VND','EUR'])
+    )
+
+def delivery_report(err, mess):
+    if err is not None:
+        print(f"Delivery report error: {mess.key()}")
+    else:
+        print(f"Delivery report success: {mess.key()}")
 
 if __name__ == "__main__":
-    create_topic(TOPIC_NAME)
+    while True:
+        transaction = generate_transaction()
+        try:
+            producer.produce(
+                topic=TOPIC_NAME,
+                key=transaction['user_id'],
+                value=json.dumps(transaction).encode("utf-8"),
+                on_delivery=delivery_report
+            )
+            print(f"Sent transaction: {transaction['transaction_id']}")
+            producer.flush()
+        except Exception as e:
+            print(f"Error: {e}")
+
+
 
     

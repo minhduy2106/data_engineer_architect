@@ -173,9 +173,9 @@ services:
 
         connect:
           enabled: false
-          cluster:
-            - name: local-connect-cluster
-              url: http://connect:8083
+          # cluster:
+          #   - name: local-connect-cluster
+          #     url: http://connect:8083
     networks:
       - codewithtin
 
