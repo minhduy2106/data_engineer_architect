@@ -181,6 +181,7 @@ services:
   spark-master:
     <<: *spark-common
     command: bin/spark-class org.apache.spark.deploy.master.Master
+    user: root
     ports:
       - "9190:8080"
       - "7077:7077"
@@ -190,6 +191,7 @@ services:
   spark-worker: &spark-worker-image
     <<: *spark-common
     command: bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    user: root
     depends_on:
       - spark-master
     environment:
@@ -200,9 +202,36 @@ services:
   
   spark-worker-2:
     <<: *spark-worker-image
-
+    user: root
   spark-worker-3:
     <<: *spark-worker-image
+    user: root
+    
+  # MONITORING
+  prometheus:
+    image: prom/prometheus:v3.0.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+    depends_on:
+      - kafka-broker-1
+      - kafka-broker-2
+      - kafka-broker-3
+      - spark-master
+      - spark-worker
+      - spark-worker-2
+      - spark-worker-3
+    networks:
+      - codetin
+
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    ports:
+      - "59093:9093"
+    networks:
+      - codetin
+      
 
 volumes:
   controller_data_1:

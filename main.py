@@ -4,85 +4,150 @@ import uuid
 import random
 import time
 from confluent_kafka import Producer
-from confluent_kafka.admin import AdminClient, NewTopic
 import logging
+from queue import Queue
+from typing import Dict, List
+import signal
+import sys
 
-KAFKA_BROKER = "localhost:29092"
-NUM_PARTITIONS = 3
-REPLICATION_FACTOR = 3
-TOPIC_NAME = "financial_transactions"
-
-logging.basicConfig(
-    level=logging.INFO
-)
-
+# Cấu hình logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
+# Constants
+KAFKA_BROKER = "localhost:29092,localhost:39092,localhost:49092"
+TOPIC_NAME = "financial_transactions"
+BATCH_SIZE = 1000
+NUM_THREADS = 16  # Tăng số lượng threads
+QUEUE_SIZE = 100000  # Queue size cho message buffer
+
+# Cấu hình producer tối ưu
 producer_conf = {
     "bootstrap.servers": KAFKA_BROKER,
-    "queue.buffering.max.messages": 10000,
-    "queue.buffering.max.kbytes": 512000,
-    "batch.num.messages": 10000,
-    "linger.ms": 10,
-    "acks": 1,
-    "compression.type": "snappy"
+    "queue.buffering.max.messages": 100000,
+    "queue.buffering.max.kbytes": 2097151,  # ~2GB
+    "batch.size": 1000000,  # 1MB batch size
+    "linger.ms": 5,  # Đợi 5ms để gom batch
+    "compression.type": "lz4",  # LZ4 compression nhanh hơn snappy
+    "acks": "1",
+    "max.in.flight.requests.per.connection": 5,
+    "socket.send.buffer.bytes": 1048576,  # 1MB socket buffer
+    "socket.receive.buffer.bytes": 1048576
 }
 
-producer = Producer(**producer_conf)
+# Message queue để buffer messages
+message_queue = Queue(maxsize=QUEUE_SIZE)
+running = True
 
-def generate_transaction():
-    return dict(
-        transaction_id=str(uuid.uuid4()),
-        user_id=f"user_{random.randint(1, 100)}",
-        amount=round(random.uniform(50000, 150000), 2),
-        transaction_time=int(time.time()),
-        merchant_id=random.choice(["merchant_1", "merchant_2","merchant_3"]),
-        transaction_type=random.choice(["purchase","refund"]),
-        location=f'location_{random.randint(1, 50)}',
-        payment_method=random.choice(["credit_card","paypal","bank_transfer"]),
-        is_international=random.choice([True, False]),
-        currency=random.choice(['USD','VND','EUR'])
-    )
+def signal_handler(signum, frame):
+    global running
+    logger.info("Shutting down gracefully...")
+    running = False
 
-def delivery_report(err, mess):
-    if err is not None:
-        print(f"Delivery report error: {mess.key()}")
+signal.signal(signal.SIGINT, signal_handler)
+
+def generate_transaction() -> Dict:
+    """Generate một transaction với cache sẵn các giá trị random"""
+    merchant_ids = ["merchant_" + str(i) for i in range(1, 4)]
+    payment_methods = ["credit_card", "paypal", "bank_transfer"]
+    currencies = ['USD', 'VND', 'EUR']
+    locations = [f'location_{i}' for i in range(1, 51)]
+    
+    return {
+        "transaction_id": str(uuid.uuid4()),
+        "user_id": f"user_{random.randint(1, 100)}",
+        "amount": round(random.uniform(50000, 150000), 2),
+        "transaction_time": int(time.time()),
+        "merchant_id": random.choice(merchant_ids),
+        "transaction_type": "purchase" if random.random() > 0.5 else "refund",
+        "location": random.choice(locations),
+        "payment_method": random.choice(payment_methods),
+        "is_international": random.random() > 0.5,
+        "currency": random.choice(currencies)
+    }
+
+def delivery_callback(err, msg):
+    if err:
+        logger.error(f'Message delivery failed: {err}')
     else:
-        print(f"Delivery report success: {mess.key()}")
+        logger.debug(f'Message delivered to {msg.topic()} [{msg.partition()}]')
 
-def producer_transaction(thread_id):
-    while True:
-        transaction = generate_transaction()
+def producer_worker():
+    """Worker thread để gửi messages từ queue"""
+    producer = Producer(producer_conf)
+    
+    while running:
         try:
-            producer.produce(
-                topic=TOPIC_NAME,
-                key=transaction['user_id'],
-                value=json.dumps(transaction).encode("utf-8"),
-                on_delivery=delivery_report
-            )
-            print(f"Thread {thread_id} - Produced transaction: {transaction}")
-            producer.flush()
+            messages = []
+            # Gom nhiều messages thành batch
+            for _ in range(BATCH_SIZE):
+                if not running:
+                    break
+                try:
+                    msg = message_queue.get(timeout=0.1)
+                    messages.append(msg)
+                except Queue.Empty:
+                    break
+
+            # Gửi batch messages
+            for msg in messages:
+                producer.produce(
+                    topic=TOPIC_NAME,
+                    key=msg['user_id'],
+                    value=json.dumps(msg).encode('utf-8'),
+                    callback=delivery_callback
+                )
+            
+            producer.poll(0)  # Trigger delivery reports
+            
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Producer error: {e}")
+    
+    # Flush khi shutdown
+    producer.flush(timeout=5)
 
-
-def producer_data_in_parallel(num_thread):
-    threads = []
-    try:
-        for i in range(num_thread):
-            thread = threading.Thread(target=producer_transaction, args=(i,))
-            thread.daemon = True
-            thread.start()
-            threads.append(thread)
-
-        for thread in threads:
-            thread.join()
-    except Exception as e:
-        print(f"Error: {e}")
-
+def generator_worker():
+    """Worker thread để generate transactions"""
+    while running:
+        try:
+            transaction = generate_transaction()
+            message_queue.put(transaction, timeout=0.1)
+        except Queue.Full:
+            time.sleep(0.001)  # Ngủ ngắn nếu queue đầy
+        except Exception as e:
+            logger.error(f"Generator error: {e}")
 
 if __name__ == "__main__":
-    producer_data_in_parallel(5)
+    try:
+        # Start generator threads
+        generator_threads = [
+            threading.Thread(target=generator_worker, daemon=True)
+            for _ in range(NUM_THREADS // 2)
+        ]
+        
+        # Start producer threads
+        producer_threads = [
+            threading.Thread(target=producer_worker, daemon=True)
+            for _ in range(NUM_THREADS // 2)
+        ]
+        
+        # Start all threads
+        for t in generator_threads + producer_threads:
+            t.start()
+            
+        # Wait for threads
+        while running:
+            time.sleep(1)
+            
+    except KeyboardInterrupt:
+        logger.info("Shutting down...")
+        running = False
+        
+    finally:
+        # Wait for threads to finish
+        for t in generator_threads + producer_threads:
+            t.join(timeout=5)
+        logger.info("Shutdown complete")
 
 
 
